@@ -1,0 +1,9 @@
+{
+	"name": "pathtracer",
+	"authors": [
+		"Timo Wiren"
+	],
+	"description": "A minimal D application.",
+	"copyright": "Copyright © 2018, Timo Wiren",
+	"license": "MIT"
+}
