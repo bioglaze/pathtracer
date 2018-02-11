@@ -3,7 +3,7 @@
 	"authors": [
 		"Timo Wiren"
 	],
-	"description": "A minimal D application.",
+	"description": "Path Tracer",
 	"copyright": "Copyright © 2018, Timo Wiren",
 	"license": "MIT"
 }

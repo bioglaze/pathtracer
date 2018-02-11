@@ -103,6 +103,15 @@ struct Vec3
         else static assert( false, "operator " ~ op ~ " not implemented" );
     }
 
+    Vec3 opUnary( string op )() const
+    {
+        static if (op == "-")
+        {
+            return Vec3( -x, -y, -z );
+        }
+        else static assert( false, "operator " ~ op ~ " not implemented" );
+    }
+
     float x, y, z;
 }
 
@@ -111,6 +120,8 @@ struct Plane
     Vec3 normal;
     Vec3 position;
     Vec3 color;
+    float smoothness;
+    float emission;
 }
 
 struct Sphere
@@ -118,6 +129,8 @@ struct Sphere
     Vec3 position;
     float radius;
     Vec3 color;
+    float smoothness;
+    float emission;
 }
 
 Vec3 randomRayInHemisphere( Vec3 aNormal )
@@ -134,6 +147,13 @@ Vec3 randomRayInHemisphere( Vec3 aNormal )
     return v2 * ( dot( v2, aNormal ) < 0.0f ? -1.0f : 1.0f);
 }
 
+Vec3 lerp( Vec3 v1, Vec3 v2, float amount )
+{
+    return Vec3( v1.x + (v2.x - v1.x) * amount,
+                 v1.y + (v2.y - v1.y) * amount,
+                 v1.z + (v2.z - v1.z) * amount );
+}
+
 Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] spheres, int recursion )
 {
     float closestDistance = float.max;
@@ -142,7 +162,9 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     Vec3 hitPoint = Vec3( 0, 0, 0 );
     Vec3 hitNormal = Vec3( 0, 1, 0 );
     Vec3 hitColor = Vec3( 0, 0, 0 );
-
+    float hitSmoothness = 0;
+    float hitEmission = 0;
+    
     const float tolerance = 0.003f;
     
     for (int planeIndex = 0; planeIndex < planes.length; ++planeIndex)
@@ -158,6 +180,8 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
             hitPoint = rayOrigin + rayDirection * distance;
             hitNormal = planes[ planeIndex ].normal;
             hitColor = planes[ planeIndex ].color;
+            hitSmoothness = planes[ planeIndex ].smoothness;
+            hitEmission = planes[ planeIndex ].emission;
         }
     }
             
@@ -177,17 +201,27 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
             hitPoint = rayOrigin + rayDirection * closestDistance;
             hitNormal = normalize( sphereToCamera );
             hitColor = spheres[ sphereIndex ].color;
+            hitSmoothness = spheres[ sphereIndex ].smoothness;
+            hitEmission = spheres[ sphereIndex ].emission;
         }                
     }
 
     if (recursion > 0 && closestIndex != -1)
     {
-        immutable Vec3 reflectionDir = reflect( rayDirection, randomRayInHemisphere( hitNormal ) );
-        immutable Vec3 reflectedColor = pathTraceRay( hitPoint, reflectionDir, planes, spheres, recursion - 1 );
-        hitColor = hitColor + reflectedColor;
+        immutable Vec3 reflectionDir = reflect( rayDirection, hitNormal );
+        immutable Vec3 jitteredReflectionDir = normalize( reflectionDir + Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) ) );
+        immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, hitSmoothness );
+        immutable Vec3 reflectedColor = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, recursion - 1 );
+        float atten = dot( -rayDirection, hitNormal );
+        if (atten < 0)
+        {
+            atten = 0;
+        }
+        hitColor = hitColor * reflectedColor * 0.6f + Vec3( hitEmission, hitEmission, hitEmission );
+        return hitColor;
     }
     
-    return hitColor;
+    return Vec3( 0, 0, 0 );
 }
 
 uint encodeColor( Vec3 color )
@@ -219,23 +253,57 @@ float toSRGB( float f )
 
 void main()
 {
-    Plane[ 1 ] planes;
-    planes[ 0 ].position = Vec3( 0, 0, 0 );
-    planes[ 0 ].normal = Vec3( 0, 1, 0 );
-    planes[ 0 ].color = Vec3( 0, 0, 1 );
+    Plane[ 5 ] planes;
+    planes[ 0 ].position = Vec3( 0, 5, 0 );
+    planes[ 0 ].normal = Vec3( 0, -1, 0 );
+    planes[ 0 ].color = Vec3( 0.5f, 0.5f, 0.5f );
+    planes[ 0 ].smoothness = 0.2f;
+    planes[ 0 ].emission = 1;
     
+    planes[ 1 ].position = Vec3( 0, -5, 0 );
+    planes[ 1 ].normal = Vec3( 0, 1, 0 );
+    planes[ 1 ].color = Vec3( 0.5f, 1.0f, 0.5f );
+    planes[ 1 ].smoothness = 0.2f;
+    planes[ 1 ].emission = 0;
+
+    planes[ 2 ].position = Vec3( -10, 0, 0 );
+    planes[ 2 ].normal = Vec3( 1, 0, 0 );
+    planes[ 2 ].color = Vec3( 1, 0, 0 );
+    planes[ 2 ].smoothness = 0.2f;
+    planes[ 2 ].emission = 0;
+
+    planes[ 3 ].position = Vec3( 10, 0, 0 );
+    planes[ 3 ].normal = Vec3( -1, 0, 0 );
+    planes[ 3 ].color = Vec3( 0, 1, 0 );
+    planes[ 3 ].smoothness = 0.2f;
+    planes[ 3 ].emission = 0;
+
+    planes[ 4 ].position = Vec3( 0, 0, -40 );
+    planes[ 4 ].normal = Vec3( 0, 0, 1 );
+    planes[ 4 ].color = Vec3( 1, 1, 0 );
+    planes[ 4 ].smoothness = 0.2f;
+    planes[ 4 ].emission = 0;
+
     Sphere[ 3 ] spheres;
-    spheres[ 0 ].position = Vec3( 0, 0, -3 );
-    spheres[ 0 ].radius = 3;
-    spheres[ 0 ].color = Vec3( 1, 0, 0 );
-    spheres[ 1 ].position = Vec3( 4, 0, 0 );
+    spheres[ 0 ].position = Vec3( -8, -4, -30 );
+    spheres[ 0 ].radius = 5;
+    spheres[ 0 ].color = Vec3( 0, 0, 1 );
+    spheres[ 0 ].smoothness = 0.9f;
+    spheres[ 0 ].emission = 0;
+    
+    spheres[ 1 ].position = Vec3( 0, -0.5f, -12 );
     spheres[ 1 ].radius = 3;
     spheres[ 1 ].color = Vec3( 0, 1, 0 );
-    spheres[ 2 ].position = Vec3( -3, 0, 0 );
-    spheres[ 2 ].radius = 1.5f;
-    spheres[ 2 ].color = Vec3( 1, 1, 0 );
+    spheres[ 1 ].smoothness = 0.5f;
+    spheres[ 1 ].emission = 0;
+    
+    spheres[ 2 ].position = Vec3( 8, -4, -30 );
+    spheres[ 2 ].radius = 5;
+    spheres[ 2 ].color = Vec3( 1, 0, 0 );
+    spheres[ 2 ].smoothness = 0.2f;
+    spheres[ 2 ].emission = 0;
 
-    immutable Vec3 cameraPosition = Vec3( 0, 1, 10 );
+    immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
     immutable Vec3 camZ = Vec3( 0, 0, 1 );
     immutable Vec3 camX = normalize( cross( camZ, Vec3( 0, 1, 0 ) ) );
     immutable Vec3 camY = normalize( cross( camZ, camX ) );
@@ -254,7 +322,7 @@ void main()
     
     uint[ width * height ] imageData;
 
-    const int sampleCount = 2;
+    const int sampleCount = 4;
     
     for (int y = 0; y < height; ++y)
     {
