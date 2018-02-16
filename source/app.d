@@ -145,14 +145,20 @@ struct Triangle
 Vec3 randomRayInHemisphere( Vec3 aNormal )
 {
     Vec3 v2 = Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) );
-    normalize( v2 );
+    v2 = normalize( v2 );
 
-    while (v2.dot( v2 ) > 1.0f)
+    float d = 2;
+    
+    while (d > 1.0f)
     {
         v2 = Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) );
-        normalize( v2 );
+        d = sqrt( v2.x * v2.x + v2.y * v2.y + v2.z * v2.z );
     }
 
+    v2.x /= d;
+    v2.y /= d;
+    v2.z /= d;
+    
     return v2 * ( dot( v2, aNormal ) < 0.0f ? -1.0f : 1.0f);
 }
 
@@ -218,29 +224,29 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     for (int triangleIndex = 0; triangleIndex < triangles.length; ++triangleIndex)
     {
         // Algorithm source: http://geomalgorithms.com/a06-_intersect-2.html#intersect_RayTriangle()
-        Vec3 vn1 = triangles[ triangleIndex ].v1 - triangles[ triangleIndex ].v0;
-        Vec3 vn2 = triangles[ triangleIndex ].v2 - triangles[ triangleIndex ].v0;
+        immutable Vec3 vn1 = triangles[ triangleIndex ].v1 - triangles[ triangleIndex ].v0;
+        immutable Vec3 vn2 = triangles[ triangleIndex ].v2 - triangles[ triangleIndex ].v0;
 
-        float distance = -dot( rayOrigin - triangles[ triangleIndex ].v0, triangles[ triangleIndex].normal ) / dot( rayDirection, triangles[ triangleIndex].normal );
+        immutable float distance = -dot( rayOrigin - triangles[ triangleIndex ].v0, triangles[ triangleIndex].normal ) / dot( rayDirection, triangles[ triangleIndex].normal );
 
         if (distance < 0.003f)
         {
             continue;
         }
 
-        Vec3 hitp = rayOrigin + rayDirection * distance;
+        immutable Vec3 hitp = rayOrigin + rayDirection * distance;
 
         // Is hit point inside the triangle?
-        float uu = dot( vn1, vn1 );
-        float uv = dot( vn1, vn2 );
-        float vv = dot( vn2, vn2 );
-        Vec3 w = hitp - triangles[ triangleIndex].v0;
-        float wu = dot( w, vn1 );
-        float wv = dot( w, vn2 );
-        float D = uv * uv - uu * vv;
+        immutable float uu = dot( vn1, vn1 );
+        immutable float uv = dot( vn1, vn2 );
+        immutable float vv = dot( vn2, vn2 );
+        immutable Vec3 w = hitp - triangles[ triangleIndex].v0;
+        immutable float wu = dot( w, vn1 );
+        immutable float wv = dot( w, vn2 );
+        immutable float D = uv * uv - uu * vv;
         
         // get and test parametric coords
-        float s = (uv * wv - vv * wu) / D;
+        immutable float s = (uv * wv - vv * wu) / D;
         
         if (s <= 0.0f || s >= 1.0f)
         {
@@ -256,24 +262,25 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
 
         closestDistance = t;
         closestIndex = triangleIndex;
-        hitPoint = rayOrigin + rayDirection * closestDistance;
+        hitPoint = hitp;
         hitNormal = triangles[ triangleIndex ].normal;
         hitColor = triangles[ triangleIndex ].color;
         hitSmoothness = triangles[ triangleIndex ].smoothness;        
         hitEmission = triangles[ triangleIndex ].emission;
     }
+
+    if (hitEmission > 0)
+    {
+        return hitColor * hitEmission;
+    }
     
     if (recursion > 0 && closestIndex != -1)
     {
         immutable Vec3 reflectionDir = reflect( rayDirection, hitNormal );
-        immutable Vec3 jitteredReflectionDir = normalize( reflectionDir + Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) ) );
+        //immutable Vec3 jitteredReflectionDir = normalize( reflectionDir + Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) ) );
+        immutable Vec3 jitteredReflectionDir = normalize( randomRayInHemisphere( reflectionDir ) );
         immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, hitSmoothness );
         immutable Vec3 reflectedColor = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
-        float atten = dot( -rayDirection, hitNormal );
-        if (atten < 0)
-        {
-            atten = 0;
-        }
         hitColor = hitColor * reflectedColor * 0.6f + Vec3( hitEmission, hitEmission, hitEmission );
         return hitColor;
     }
@@ -380,15 +387,15 @@ void main()
     immutable float dist = 1;
     immutable Vec3 center = cameraPosition - camZ * dist;
 
-    float fW = 1;
-    float fH = fW * height / cast(float)width;
+    immutable float fW = 1;
+    immutable float fH = fW * height / cast(float)width;
     
-    float halfW = 0.5f * fW;
-    float halfH = 0.5f * fH;
+    immutable float halfW = 0.5f * fW;
+    immutable float halfH = 0.5f * fH;
     
     uint[ width * height ] imageData;
 
-    const int sampleCount = 1;
+    const int sampleCount = 2;
     
     for (int y = 0; y < height; ++y)
     {
@@ -405,7 +412,7 @@ void main()
 
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 2 ) * (1.0f / sampleCount);
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / sampleCount);
     
                 if (color.x > 1)
                 {
