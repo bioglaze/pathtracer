@@ -2,6 +2,61 @@ import std.stdio;
 import std.math;
 import std.random: uniform;
 
+struct Texture
+{
+    byte[] pixels;
+    int width;
+    int height;
+}
+
+void readTGA( string path, out Texture texture )
+{
+    try
+    {
+        auto f = File( path, "r" );
+            
+        byte[ 1 ] idLength;
+        f.rawRead( idLength );
+
+        byte[ 1 ] colorMapType;
+        f.rawRead( colorMapType );
+
+        byte[ 1 ] imageType;
+        f.rawRead( imageType );
+
+        if (imageType[ 0 ] != 2)
+        {
+            throw new Exception( "wrong TGA type: must be uncompressed true-color" );
+        }
+
+        byte[ 5 ] colorSpec;
+        f.rawRead( colorSpec );
+
+        byte[ 4 ] specBegin;
+        short[ 2 ] specDim;
+        f.rawRead( specBegin );
+        f.rawRead( specDim );
+        texture.width = specDim[ 0 ];
+        texture.height = specDim[ 1 ];
+
+        byte[ 2 ] specEnd;
+        f.rawRead( specEnd );
+
+        if (idLength[ 0 ] > 0)
+        {
+            byte[] imageId = new byte[ idLength[ 0 ] ];
+            f.rawRead( imageId );
+        }
+
+        texture.pixels = new byte[ texture.width * texture.height * 4 ];
+        f.rawRead( texture.pixels );
+    }
+    catch (Exception e)
+    {
+        writeln( "could not open ", path, ":", e );
+    } 
+}
+
 align( 1 ) struct BMPHeader
 {
     align(1):
@@ -320,7 +375,7 @@ void main()
     Plane[ 5 ] planes;
     planes[ 0 ].position = Vec3( 0, 5, 0 );
     planes[ 0 ].normal = Vec3( 0, -1, 0 );
-    planes[ 0 ].color = Vec3( 0.5f, 0.5f, 0.5f );
+    planes[ 0 ].color = Vec3( 0.8f, 0.8f, 0.8f );
     planes[ 0 ].smoothness = 0.2f;
     planes[ 0 ].emission = 1;
     
@@ -348,7 +403,7 @@ void main()
     planes[ 4 ].smoothness = 0.2f;
     planes[ 4 ].emission = 0;
 
-    Sphere[ 3 ] spheres;
+    Sphere[ 4 ] spheres;
     spheres[ 0 ].position = Vec3( -8, -4, -30 );
     spheres[ 0 ].radius = 5;
     spheres[ 0 ].color = Vec3( 0, 0, 1 );
@@ -367,6 +422,12 @@ void main()
     spheres[ 2 ].smoothness = 0.2f;
     spheres[ 2 ].emission = 0;
 
+    spheres[ 3 ].position = Vec3( 4, 5, -30 );
+    spheres[ 3 ].radius = 2;
+    spheres[ 3 ].color = Vec3( 1, 1, 1 );
+    spheres[ 3 ].smoothness = 0.2f;
+    spheres[ 3 ].emission = 1;
+
     Triangle[ 1 ] triangles;
     triangles[ 0 ].v0 = Vec3( 8, -2, -30 );
     triangles[ 0 ].v1 = Vec3( 14, -2, -30 );
@@ -375,6 +436,9 @@ void main()
     triangles[ 0 ].color = Vec3( 1, 0, 0 );
     triangles[ 0 ].smoothness = 0.2f;
     triangles[ 0 ].emission = 0;
+
+    Texture tex;
+    readTGA( "wall1.tga", tex );
     
     immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
     immutable Vec3 camZ = Vec3( 0, 0, 1 );
@@ -431,7 +495,6 @@ void main()
             imageData[ y * width + x ] = encodeColor( Vec3( toSRGB( color.x ), toSRGB( color.y ), toSRGB( color.z ) ) );                
         }
     }
-
             
     writeBMP( imageData, width, height );
 }
