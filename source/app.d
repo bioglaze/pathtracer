@@ -249,7 +249,9 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
             closestIndex = planeIndex;
             hitPoint = rayOrigin + rayDirection * distance;
             hitNormal = planes[ planeIndex ].normal;
-            hitColor = planes[ planeIndex ].color;
+            immutable float sines = sin( 10 * hitPoint.x ) * sin( 10 * hitPoint.y ) * sin( 10 * hitPoint.z );
+            //hitColor = sines < 0 ? planes[ planeIndex ].color : Vec3( 1, 0, 0 );
+            hitColor = sines < 0 ? Vec3( 1, 1, 1 ) : Vec3( 1, 0, 0 );
             hitSmoothness = planes[ planeIndex ].smoothness;
             hitEmission = planes[ planeIndex ].emission;
         }
