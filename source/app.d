@@ -64,6 +64,10 @@ struct Vec3
         {
             return Vec3( x * f, y * f, z * f );
         }
+        else static if (op == "/")
+        {
+            return Vec3( x / f, y / f, z / f );
+        }
         else static assert( false, "operator " ~ op ~ " not implemented" );
     }
 
@@ -135,6 +139,11 @@ Vec3 lerp( Vec3 v1, Vec3 v2, float amount )
 
 Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] spheres, Triangle[] triangles, int recursion )
 {
+    if (recursion == 0)
+    {
+        return Vec3( 0, 0, 0 );
+    }
+    
     float closestDistance = float.max;
     int closestIndex = -1;
 
@@ -243,12 +252,16 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     if (recursion > 0 && closestIndex != -1)
     {
         immutable Vec3 reflectionDir = reflect( rayDirection, hitNormal );
-        //immutable Vec3 jitteredReflectionDir = normalize( reflectionDir + Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) ) );
         immutable Vec3 jitteredReflectionDir = normalize( randomRayInHemisphere( reflectionDir ) );
         immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, hitSmoothness );
         immutable Vec3 reflectedColor = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
-        hitColor = (hitColor + Vec3( hitEmission, hitEmission, hitEmission ) ) * reflectedColor;
-        return hitColor;
+
+        // BRDF
+        immutable float cosTheta = dot( finalReflectionDir, hitNormal );
+        immutable Vec3 brdf = hitColor / 3.14159265f;        
+        immutable float p = 1.0f / (2.0f * 3.14159265f);
+        
+        return Vec3( hitEmission, hitEmission, hitEmission ) + (brdf * reflectedColor * cosTheta / p);
     }
     
     return Vec3( 0, 0, 0 );
@@ -335,7 +348,7 @@ void main()
 
     spheres[ 3 ].position = Vec3( 4, 5, -30 );
     spheres[ 3 ].radius = 2;
-    spheres[ 3 ].color = Vec3( 0.5f, 0.5f, 0.5f );
+    spheres[ 3 ].color = Vec3( 1, 1, 1 );
     spheres[ 3 ].smoothness = 0.2f;
     spheres[ 3 ].emission = 1;
 
