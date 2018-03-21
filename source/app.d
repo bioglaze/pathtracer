@@ -7,6 +7,7 @@ import image;
 // Refraction
 // Transparency
 // Mipmapping
+// Threading
 
 Vec3 normalize( Vec3 v )
 {
@@ -152,6 +153,9 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     Vec3 hitColor = Vec3( 0, 0, 0 );
     float hitSmoothness = 0;
     float hitEmission = 0;
+
+    enum ClosestType { Plane, Sphere, Triangle }
+    ClosestType closestType;
     
     const float tolerance = 0.003f;
     
@@ -165,13 +169,7 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         {
             closestDistance = distance;
             closestIndex = planeIndex;
-            hitPoint = rayOrigin + rayDirection * distance;
-            hitNormal = planes[ planeIndex ].normal;
-            immutable float sines = sin( 10 * hitPoint.x ) * sin( 10 * hitPoint.y ) * sin( 10 * hitPoint.z );
-            //hitColor = sines < 0 ? planes[ planeIndex ].color : Vec3( 1, 0, 0 );
-            hitColor = sines < 0 ? Vec3( 1, 1, 1 ) : planes[ planeIndex ].color;
-            hitSmoothness = planes[ planeIndex ].smoothness;
-            hitEmission = planes[ planeIndex ].emission;
+            closestType = ClosestType.Plane;
         }
     }
             
@@ -188,6 +186,7 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         {
             closestDistance = di;
             closestIndex = sphereIndex;
+            closestType = ClosestType.Sphere;
             hitPoint = rayOrigin + rayDirection * closestDistance;
             hitNormal = normalize( sphereToCamera );
             hitColor = spheres[ sphereIndex ].color;
@@ -237,16 +236,32 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
 
         closestDistance = t;
         closestIndex = triangleIndex;
-        hitPoint = hitp;
-        hitNormal = triangles[ triangleIndex ].normal;
-        hitColor = triangles[ triangleIndex ].color;
-        hitSmoothness = triangles[ triangleIndex ].smoothness;        
-        hitEmission = triangles[ triangleIndex ].emission;
+        closestType = ClosestType.Triangle;
+
+        //hitPoint = hitp;
     }
 
     if (hitEmission > 0)
     {
         return hitColor * hitEmission;
+    }
+
+    if (closestIndex > -1 && closestType == ClosestType.Plane)
+    {
+        hitPoint = rayOrigin + rayDirection * closestDistance;
+        hitNormal = planes[ closestIndex ].normal;
+        immutable float sines = sin( 10 * hitPoint.x ) * sin( 10 * hitPoint.y ) * sin( 10 * hitPoint.z );
+        hitColor = sines < 0 ? Vec3( 1, 1, 1 ) : planes[ closestIndex ].color;
+        hitSmoothness = planes[ closestIndex ].smoothness;
+        hitEmission = planes[ closestIndex ].emission;
+    }
+    else if (closestIndex > -1 && closestType == ClosestType.Triangle)
+    { 
+        hitPoint = rayOrigin + rayDirection * closestDistance;
+        hitNormal = triangles[ closestIndex ].normal;
+        hitColor = triangles[ closestIndex ].color;
+        hitSmoothness = triangles[ closestIndex ].smoothness;        
+        hitEmission = triangles[ closestIndex ].emission;
     }
     
     if (recursion > 0 && closestIndex != -1)
@@ -356,7 +371,9 @@ void main()
     triangles[ 0 ].v0 = Vec3( 8, -2, -30 );
     triangles[ 0 ].v1 = Vec3( 14, -2, -30 );
     triangles[ 0 ].v2 = Vec3( 8, -0, -30 );
-    triangles[ 0 ].normal = Vec3( 0, 0, -1 );
+    Vec3 p1 = triangles[ 0 ].v1 - triangles[ 0 ].v0;
+    Vec3 p2 = triangles[ 0 ].v2 - triangles[ 0 ].v0;
+    triangles[ 0 ].normal = normalize( cross( p1, p2 ) );
     triangles[ 0 ].color = Vec3( 1, 0, 0 );
     triangles[ 0 ].smoothness = 0.2f;
     triangles[ 0 ].emission = 0;
@@ -400,7 +417,7 @@ void main()
 
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 2 ) * (1.0f / sampleCount);
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / sampleCount);
     
                 if (color.x > 1)
                 {
