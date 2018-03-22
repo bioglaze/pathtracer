@@ -13,7 +13,7 @@ Vec3 normalize( Vec3 v )
 {
     float length = sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     
-    return Vec3( v.x / length, v.y / length, v.z / length );
+    return v / length;
 }
 
 float dot( Vec3 v1, Vec3 v2 )
@@ -269,10 +269,17 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         immutable Vec3 reflectionDir = reflect( rayDirection, hitNormal );
         immutable Vec3 jitteredReflectionDir = normalize( randomRayInHemisphere( reflectionDir ) );
         immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, hitSmoothness );
-        immutable Vec3 reflectedColor = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
 
         // BRDF
-        immutable float cosTheta = dot( finalReflectionDir, hitNormal );
+        float cosTheta = dot( finalReflectionDir, hitNormal );
+
+        if (cosTheta < 0)
+        {
+            cosTheta = -cosTheta;
+        }
+
+        immutable Vec3 reflectedColor = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
+
         immutable Vec3 brdf = hitColor / 3.14159265f;        
         immutable float p = 1.0f / (2.0f * 3.14159265f);
         
@@ -400,7 +407,7 @@ void main()
     
     uint[ width * height ] imageData;
 
-    const int sampleCount = 2;
+    const int sampleCount = 64;
     
     for (int y = 0; y < height; ++y)
     {
