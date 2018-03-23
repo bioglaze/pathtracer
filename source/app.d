@@ -237,8 +237,6 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         closestDistance = t;
         closestIndex = triangleIndex;
         closestType = ClosestType.Triangle;
-
-        //hitPoint = hitp;
     }
 
     if (hitEmission > 0)
@@ -269,7 +267,8 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         immutable Vec3 reflectionDir = reflect( rayDirection, hitNormal );
         immutable Vec3 jitteredReflectionDir = normalize( randomRayInHemisphere( reflectionDir ) );
         immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, hitSmoothness );
-
+        //immutable Vec3 finalReflectionDir = normalize( randomRayInHemisphere( hitNormal ) );
+        
         // BRDF
         float cosTheta = dot( finalReflectionDir, hitNormal );
 
@@ -353,25 +352,25 @@ void main()
     spheres[ 0 ].position = Vec3( -8, -4, -30 );
     spheres[ 0 ].radius = 5;
     spheres[ 0 ].color = Vec3( 0, 0, 1 );
-    spheres[ 0 ].smoothness = 0.9f;
+    spheres[ 0 ].smoothness = 1.0f;
     spheres[ 0 ].emission = 0;
     
     spheres[ 1 ].position = Vec3( 0, -0.5f, -12 );
     spheres[ 1 ].radius = 3;
     spheres[ 1 ].color = Vec3( 0, 1, 0 );
-    spheres[ 1 ].smoothness = 0.5f;
+    spheres[ 1 ].smoothness = 1.0f;
     spheres[ 1 ].emission = 0;
     
     spheres[ 2 ].position = Vec3( 8, -4, -30 );
     spheres[ 2 ].radius = 5;
     spheres[ 2 ].color = Vec3( 1, 0, 0 );
-    spheres[ 2 ].smoothness = 0.2f;
+    spheres[ 2 ].smoothness = 1.0f;
     spheres[ 2 ].emission = 0;
 
-    spheres[ 3 ].position = Vec3( 4, 5, -30 );
+    spheres[ 3 ].position = Vec3( 4, -4, -30 );
     spheres[ 3 ].radius = 2;
     spheres[ 3 ].color = Vec3( 1, 1, 1 );
-    spheres[ 3 ].smoothness = 0.2f;
+    spheres[ 3 ].smoothness = 1.0f;
     spheres[ 3 ].emission = 1;
 
     Triangle[ 1 ] triangles;
@@ -407,7 +406,9 @@ void main()
     
     uint[ width * height ] imageData;
 
-    const int sampleCount = 64;
+    const int sampleCount = 32;
+
+    int percent = 0;
     
     for (int y = 0; y < height; ++y)
     {
@@ -424,7 +425,7 @@ void main()
 
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / sampleCount);
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 4 ) * (1.0f / sampleCount);
     
                 if (color.x > 1)
                 {
@@ -442,7 +443,15 @@ void main()
 
             imageData[ y * width + x ] = encodeColor( Vec3( toSRGB( color.x ), toSRGB( color.y ), toSRGB( color.z ) ) );                
         }
+
+        if ((y % (height / 10)) == 0)
+        {
+            writeln( percent, " %" );
+            percent += 10;
+        }
     }
+
+    writeln( "100 %" );
             
     writeBMP( imageData, width, height );
 }
