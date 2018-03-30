@@ -277,8 +277,13 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
             cosTheta = -cosTheta;
         }
 
-        immutable Vec3 reflectedColor = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
+        immutable Vec3 reflectedColor1 = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
 
+        immutable Vec3 dirToEmissive = normalize( spheres[ 3 ].position - hitPoint );
+        
+        immutable Vec3 reflectedColorTowardEmissive = pathTraceRay( hitPoint, dirToEmissive, planes, spheres, triangles, recursion - 1 );
+        immutable Vec3 reflectedColor = reflectedColor1 + reflectedColorTowardEmissive;
+        
         immutable Vec3 brdf = hitColor / 3.14159265f;        
         immutable float p = 1.0f / (2.0f * 3.14159265f);
         
@@ -406,7 +411,7 @@ void main()
     
     uint[ width * height ] imageData;
 
-    const int sampleCount = 32;
+    const int sampleCount = 4;
 
     int percent = 0;
     
@@ -425,7 +430,7 @@ void main()
 
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 4 ) * (1.0f / sampleCount);
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / (sampleCount * 2)); // * 2 due to rays toward emissive objects
     
                 if (color.x > 1)
                 {
