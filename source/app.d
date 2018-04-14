@@ -1,3 +1,4 @@
+import std.concurrency;
 import std.stdio;
 import std.math;
 import std.random: uniform;
@@ -320,6 +321,67 @@ float toSRGB( float f )
     return s;
 }
 
+void traceRays( int startY, int endY, int width, int height, uint[] imageData, Plane[] planes, Sphere[] spheres, Triangle[] triangles )
+{
+    immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
+    immutable Vec3 camZ = Vec3( 0, 0, 1 );
+    immutable Vec3 camX = normalize( cross( camZ, Vec3( 0, 1, 0 ) ) );
+    immutable Vec3 camY = normalize( cross( camZ, camX ) );
+
+    immutable float dist = 1;
+    immutable Vec3 center = cameraPosition - camZ * dist;
+
+    immutable float fW = 1;
+    immutable float fH = fW * height / cast(float)width;
+    
+    immutable float halfW = 0.5f * fW;
+    immutable float halfH = 0.5f * fH;
+
+    const int sampleCount = 4;
+    int percent = 0;
+
+    for (int y = startY; y < endY; ++y)
+    {
+        immutable float yR = -1 + 2 * (y / cast(float)height);
+            
+        for (int x = 0; x < width; ++x)
+        {
+            Vec3 color = Vec3( 0, 0, 0 );
+            
+            for (int samples = 0; samples < sampleCount; ++samples)
+            {
+                immutable float xR = -1 + 2 * (x / cast(float)width);
+                immutable Vec3 fp = center + camX * halfW * xR + camY * halfH * yR;
+
+                immutable Vec3 rayDirection = normalize( fp - cameraPosition );
+
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / (sampleCount * 2)); // * 2 due to rays toward emissive objects
+    
+                if (color.x > 1)
+                {
+                    color.x = 1;
+                }
+                if (color.y > 1)
+                {
+                    color.y = 1;
+                }
+                if (color.z > 1)
+                {
+                    color.z = 1;
+                }
+            }
+
+            imageData[ y * width + x ] = encodeColor( Vec3( toSRGB( color.x ), toSRGB( color.y ), toSRGB( color.z ) ) );                
+        }
+
+        if ((y % (height / 10)) == 0)
+        {
+            writeln( percent, " %" );
+            percent += 10;
+        }
+    }
+}
+
 void main()
 {
     Plane[ 5 ] planes;
@@ -389,73 +451,17 @@ void main()
     triangles[ 0 ].smoothness = 0.2f;
     triangles[ 0 ].emission = 0;
 
-    Texture tex;
-    readTGA( "wall1.tga", tex );
-    
-    immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
-    immutable Vec3 camZ = Vec3( 0, 0, 1 );
-    immutable Vec3 camX = normalize( cross( camZ, Vec3( 0, 1, 0 ) ) );
-    immutable Vec3 camY = normalize( cross( camZ, camX ) );
+    //Texture tex;
+    //readTGA( "wall1.tga", tex );
 
     const int width = 1280;
     const int height = 720;
 
-    immutable float dist = 1;
-    immutable Vec3 center = cameraPosition - camZ * dist;
-
-    immutable float fW = 1;
-    immutable float fH = fW * height / cast(float)width;
-    
-    immutable float halfW = 0.5f * fW;
-    immutable float halfH = 0.5f * fH;
-    
     uint[ width * height ] imageData;
 
-    const int sampleCount = 4;
-
-    int percent = 0;
+    traceRays( 0, height, width, height, imageData, planes, spheres, triangles );
+    //spawn( &traceRays, 0, height );
     
-    for (int y = 0; y < height; ++y)
-    {
-        immutable float yR = -1 + 2 * (y / cast(float)height);
-            
-        for (int x = 0; x < width; ++x)
-        {
-            Vec3 color = Vec3( 0, 0, 0 );
-            
-            for (int samples = 0; samples < sampleCount; ++samples)
-            {
-                immutable float xR = -1 + 2 * (x / cast(float)width);
-                immutable Vec3 fp = center + camX * halfW * xR + camY * halfH * yR;
-
-                immutable Vec3 rayDirection = normalize( fp - cameraPosition );
-
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / (sampleCount * 2)); // * 2 due to rays toward emissive objects
-    
-                if (color.x > 1)
-                {
-                    color.x = 1;
-                }
-                if (color.y > 1)
-                {
-                    color.y = 1;
-                }
-                if (color.z > 1)
-                {
-                    color.z = 1;
-                }
-            }
-
-            imageData[ y * width + x ] = encodeColor( Vec3( toSRGB( color.x ), toSRGB( color.y ), toSRGB( color.z ) ) );                
-        }
-
-        if ((y % (height / 10)) == 0)
-        {
-            writeln( percent, " %" );
-            percent += 10;
-        }
-    }
-
     writeln( "100 %" );
             
     writeBMP( imageData, width, height );
