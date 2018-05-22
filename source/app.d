@@ -321,7 +321,12 @@ float toSRGB( float f )
     return s;
 }
 
-void traceRays( int startY, int endY, int width, int height, uint[] imageData, Plane[] planes, Sphere[] spheres, Triangle[] triangles )
+const int width = 1280;
+const int height = 720;
+
+static uint[ width * height ] imageData;
+
+void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[] imageData*/, Plane[] planes, Sphere[] spheres, Triangle[] triangles )
 {
     immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
     immutable Vec3 camZ = Vec3( 0, 0, 1 );
@@ -337,7 +342,7 @@ void traceRays( int startY, int endY, int width, int height, uint[] imageData, P
     immutable float halfW = 0.5f * fW;
     immutable float halfH = 0.5f * fH;
 
-    const int sampleCount = 4;
+    const int sampleCount = 2;
     int percent = 0;
 
     for (int y = startY; y < endY; ++y)
@@ -380,6 +385,8 @@ void traceRays( int startY, int endY, int width, int height, uint[] imageData, P
             percent += 10;
         }
     }
+
+    owner.send( true );
 }
 
 void main()
@@ -454,14 +461,11 @@ void main()
     //Texture tex;
     //readTGA( "wall1.tga", tex );
 
-    const int width = 1280;
-    const int height = 720;
-
-    uint[ width * height ] imageData;
-
-    traceRays( 0, height, width, height, imageData, planes, spheres, triangles );
-    //spawn( &traceRays, 0, height );
+    traceRays( thisTid, 0, height, width, height, planes, spheres, triangles );
     
+    //auto tId1 = spawn( &traceRays, thisTid, 0, height, width, height, planes, spheres, triangles );
+    //auto tId2 = spawn( &traceRays, thisTid, height / 2, height, width, height, planes, spheres, triangles );
+    //auto isDone = receiveOnly!bool;
     writeln( "100 %" );
             
     writeBMP( imageData, width, height );
