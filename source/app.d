@@ -10,6 +10,8 @@ import image;
 // Mipmapping
 // Threading
 
+Texture tex;
+
 Vec3 normalize( Vec3 v )
 {
     float length = sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
@@ -148,7 +150,8 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     
     float closestDistance = float.max;
     int closestIndex = -1;
-
+    Vec3 closestTextureColor = Vec3( 0, 0, 0 );
+    
     Vec3 hitPoint = Vec3( 0, 0, 0 );
     Vec3 hitNormal = Vec3( 0, 1, 0 );
     Vec3 hitColor = Vec3( 0, 0, 0 );
@@ -235,6 +238,11 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
             continue;
         }
 
+        int offs = cast(int)(t * tex.height * tex.width + s * tex.width) * 4;
+        closestTextureColor.x = tex.pixels[ offs + 0 ] / 255.0f;
+        closestTextureColor.y = tex.pixels[ offs + 1 ] / 255.0f;
+        closestTextureColor.z = tex.pixels[ offs + 2 ] / 255.0f;
+        
         closestDistance = t;
         closestIndex = triangleIndex;
         closestType = ClosestType.Triangle;
@@ -258,8 +266,8 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     { 
         hitPoint = rayOrigin + rayDirection * closestDistance;
         hitNormal = triangles[ closestIndex ].normal;
-        hitColor = triangles[ closestIndex ].color;
-        hitSmoothness = triangles[ closestIndex ].smoothness;        
+        hitColor = closestTextureColor;//triangles[ closestIndex ].color;
+        hitSmoothness = triangles[ closestIndex ].smoothness;
         hitEmission = triangles[ closestIndex ].emission;
     }
     
@@ -342,7 +350,7 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
     immutable float halfW = 0.5f * fW;
     immutable float halfH = 0.5f * fH;
 
-    const int sampleCount = 2;
+    const int sampleCount = 1;
     int percent = 0;
 
     for (int y = startY; y < endY; ++y)
@@ -458,8 +466,7 @@ void main()
     triangles[ 0 ].smoothness = 0.2f;
     triangles[ 0 ].emission = 0;
 
-    //Texture tex;
-    //readTGA( "wall1.tga", tex );
+    readTGA( "wall1.tga", tex );
 
     traceRays( thisTid, 0, height, width, height, planes, spheres, triangles );
     

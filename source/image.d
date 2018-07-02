@@ -5,6 +5,7 @@ struct Texture
     byte[] pixels;
     int width;
     int height;
+    int channels;
 }
 
 void readTGA( string path, out Texture texture )
@@ -47,6 +48,8 @@ void readTGA( string path, out Texture texture )
         }
 
         texture.pixels = new byte[ texture.width * texture.height * 4 ];
+        texture.channels = 4;
+        
         f.rawRead( texture.pixels );
     }
     catch (Exception e)
