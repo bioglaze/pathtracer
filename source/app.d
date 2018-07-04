@@ -239,9 +239,9 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         }
 
         int offs = cast(int)(t * tex.height * tex.width + s * tex.width) * 4;
-        closestTextureColor.x = tex.pixels[ offs + 0 ] / 255.0f;
+        closestTextureColor.z = tex.pixels[ offs + 0 ] / 255.0f;
         closestTextureColor.y = tex.pixels[ offs + 1 ] / 255.0f;
-        closestTextureColor.z = tex.pixels[ offs + 2 ] / 255.0f;
+        closestTextureColor.x = tex.pixels[ offs + 2 ] / 255.0f;
         
         closestDistance = t;
         closestIndex = triangleIndex;
