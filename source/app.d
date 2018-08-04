@@ -273,7 +273,7 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     
     if (recursion > 0 && closestIndex != -1)
     {
-        immutable Vec3 reflectionDir = reflect( rayDirection, hitNormal );
+        immutable Vec3 reflectionDir = normalize( reflect( rayDirection, hitNormal ) );
         immutable Vec3 jitteredReflectionDir = normalize( randomRayInHemisphere( reflectionDir ) );
         immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, hitSmoothness );
         //immutable Vec3 finalReflectionDir = normalize( randomRayInHemisphere( hitNormal ) );
