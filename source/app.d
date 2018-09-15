@@ -1,3 +1,4 @@
+import core.simd;
 import std.concurrency;
 import std.stdio;
 import std.math;
@@ -5,10 +6,22 @@ import std.random: uniform;
 import image;
 
 // TODO:
+// SIMD
 // Refraction
 // Transparency
 // Mipmapping
 // Threading
+
+// SIMD code for reference:
+// r_line = __simd( XMM.MULPS, a_line, b_line );
+// r_line = __simd( XMM.ADDPS, __simd( XMM.MULPS, a_line, b_line ), r_line );
+
+struct sVec3
+{
+    float4 x;
+    float4 y;
+    float4 z;
+}
 
 Texture tex;
 
@@ -368,7 +381,8 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
 
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / (sampleCount * 2)); // * 2 due to rays toward emissive objects
+                // * 2 due to rays toward emissive objects
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / (sampleCount * 2));
     
                 if (color.x > 1)
                 {
