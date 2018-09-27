@@ -1,7 +1,7 @@
 import core.simd;
 import std.concurrency;
-import std.stdio;
 import std.math;
+import std.stdio;
 import std.random: uniform;
 import image;
 
@@ -27,7 +27,7 @@ Texture tex;
 
 Vec3 normalize( Vec3 v )
 {
-    float length = sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
+    immutable float length = sqrt( v.x * v.x + v.y * v.y + v.z * v.z );
     
     return v / length;
 }
@@ -174,7 +174,7 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     enum ClosestType { Plane, Sphere, Triangle }
     ClosestType closestType;
     
-    const float tolerance = 0.003f;
+    const float tolerance = 0.0003f;
     
     for (int planeIndex = 0; planeIndex < planes.length; ++planeIndex)
     {
@@ -473,8 +473,8 @@ void main()
     triangles[ 0 ].v0 = Vec3( 8, -2, -30 );
     triangles[ 0 ].v1 = Vec3( 14, -2, -30 );
     triangles[ 0 ].v2 = Vec3( 8, -0, -30 );
-    Vec3 p1 = triangles[ 0 ].v1 - triangles[ 0 ].v0;
-    Vec3 p2 = triangles[ 0 ].v2 - triangles[ 0 ].v0;
+    immutable Vec3 p1 = triangles[ 0 ].v1 - triangles[ 0 ].v0;
+    immutable Vec3 p2 = triangles[ 0 ].v2 - triangles[ 0 ].v0;
     triangles[ 0 ].normal = normalize( cross( p1, p2 ) );
     triangles[ 0 ].color = Vec3( 1, 0, 0 );
     triangles[ 0 ].smoothness = 0.2f;
