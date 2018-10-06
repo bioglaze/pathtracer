@@ -16,12 +16,12 @@ import image;
 // r_line = __simd( XMM.MULPS, a_line, b_line );
 // r_line = __simd( XMM.ADDPS, __simd( XMM.MULPS, a_line, b_line ), r_line );
 
-struct sVec3
+/*struct sVec3
 {
     float4 x;
     float4 y;
     float4 z;
-}
+}*/
 
 Texture tex;
 
@@ -127,6 +127,12 @@ struct Triangle
     float emission;
 }
 
+struct PointLight
+{
+    Vec3 position;
+    Vec3 color;
+}
+
 Vec3 randomRayInHemisphere( Vec3 aNormal )
 {
     Vec3 v2 = Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) );
@@ -154,7 +160,7 @@ Vec3 lerp( Vec3 v1, Vec3 v2, float amount )
                  v1.z + (v2.z - v1.z) * amount );
 }
 
-Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] spheres, Triangle[] triangles, int recursion )
+Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] spheres, Triangle[] triangles, PointLight[] pointLights, int recursion )
 {
     if (recursion == 0)
     {
@@ -299,11 +305,11 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
             cosTheta = -cosTheta;
         }
 
-        immutable Vec3 reflectedColor1 = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
+        immutable Vec3 reflectedColor1 = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, pointLights, recursion - 1 );
 
         immutable Vec3 dirToEmissive = normalize( spheres[ 3 ].position - hitPoint );
         
-        immutable Vec3 reflectedColorTowardEmissive = pathTraceRay( hitPoint, dirToEmissive, planes, spheres, triangles, recursion - 1 );
+        immutable Vec3 reflectedColorTowardEmissive = pathTraceRay( hitPoint, dirToEmissive, planes, spheres, triangles, pointLights, recursion - 1 );
         immutable Vec3 reflectedColor = reflectedColor1 + reflectedColorTowardEmissive;
         
         immutable Vec3 brdf = hitColor / 3.14159265f;        
@@ -347,7 +353,7 @@ const int height = 720;
 
 static uint[ width * height ] imageData;
 
-void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[] imageData*/, Plane[] planes, Sphere[] spheres, Triangle[] triangles )
+void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[] imageData*/, Plane[] planes, Sphere[] spheres, Triangle[] triangles, PointLight[] pointLights )
 {
     immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
     immutable Vec3 camZ = Vec3( 0, 0, 1 );
@@ -382,7 +388,7 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
                 // * 2 due to rays toward emissive objects
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 3 ) * (1.0f / (sampleCount * 2));
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, pointLights, 3 ) * (1.0f / (sampleCount * 2));
     
                 if (color.x > 1)
                 {
@@ -469,6 +475,10 @@ void main()
     spheres[ 3 ].smoothness = 1.0f;
     spheres[ 3 ].emission = 1;
 
+    PointLight[ 1 ] pointLights;
+    pointLights[ 0 ].color = Vec3( 1, 0, 0 );
+    pointLights[ 0 ].position = Vec3( 10, -4, -30 );
+    
     Triangle[ 1 ] triangles;
     triangles[ 0 ].v0 = Vec3( 8, -2, -30 );
     triangles[ 0 ].v1 = Vec3( 14, -2, -30 );
@@ -482,7 +492,7 @@ void main()
 
     readTGA( "wall1.tga", tex );
 
-    traceRays( thisTid, 0, height, width, height, planes, spheres, triangles );
+    traceRays( thisTid, 0, height, width, height, planes, spheres, triangles, pointLights );
     
     //auto tId1 = spawn( &traceRays, thisTid, 0, height, width, height, planes, spheres, triangles );
     //auto tId2 = spawn( &traceRays, thisTid, height / 2, height, width, height, planes, spheres, triangles );
