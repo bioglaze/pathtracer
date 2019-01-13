@@ -310,7 +310,7 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         immutable Vec3 dirToEmissive = normalize( spheres[ 3 ].position - hitPoint );
         
         immutable Vec3 reflectedColorTowardEmissive = pathTraceRay( hitPoint, dirToEmissive, planes, spheres, triangles, pointLights, recursion - 1 );
-        immutable Vec3 reflectedColor = reflectedColor1 + reflectedColorTowardEmissive;
+        immutable Vec3 reflectedColor = reflectedColor1;// + reflectedColorTowardEmissive;
         
         immutable Vec3 brdf = hitColor / 3.14159265f;        
         immutable float p = 1.0f / (2.0f * 3.14159265f);
@@ -419,7 +419,7 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
 
 void main()
 {
-    Plane[ 5 ] planes;
+    Plane[ 6 ] planes;
     planes[ 0 ].position = Vec3( 0, 5, 0 );
     planes[ 0 ].normal = Vec3( 0, -1, 0 );
     planes[ 0 ].color = Vec3( 0.8f, 0.8f, 0.8f );
@@ -449,6 +449,12 @@ void main()
     planes[ 4 ].color = Vec3( 1, 1, 0 );
     planes[ 4 ].smoothness = 0.2f;
     planes[ 4 ].emission = 0;
+
+    planes[ 5 ].position = Vec3( 0, 0, 40 );
+    planes[ 5 ].normal = Vec3( 0, 0, -1 );
+    planes[ 5 ].color = Vec3( 1, 1, 0 );
+    planes[ 5 ].smoothness = 0.2f;
+    planes[ 5 ].emission = 0;
 
     Sphere[ 4 ] spheres;
     spheres[ 0 ].position = Vec3( -8, -4, -30 );
