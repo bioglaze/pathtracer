@@ -5,6 +5,8 @@ import std.stdio;
 import std.random: uniform;
 import image;
 
+// unoptimized: 2 min 6 s, 2 min 4 s
+
 // TODO:
 // SIMD
 // Refraction
@@ -485,7 +487,7 @@ void main()
     pointLights[ 0 ].color = Vec3( 1, 0, 0 );
     pointLights[ 0 ].position = Vec3( 10, -4, -30 );
     
-    Triangle[ 1 ] triangles;
+    Triangle[ 10 ] triangles;
     triangles[ 0 ].v0 = Vec3( 8, -2, -30 );
     triangles[ 0 ].v1 = Vec3( 14, -2, -30 );
     triangles[ 0 ].v2 = Vec3( 8, -0, -30 );
@@ -496,6 +498,19 @@ void main()
     triangles[ 0 ].smoothness = 0.2f;
     triangles[ 0 ].emission = 0;
 
+    for (int i = 1; i < 10; ++i)
+    {
+        triangles[ i ].v0 = Vec3( 4 + i * 2 , -4, -30 );
+        triangles[ i ].v1 = Vec3( 6 + i * 2, -4, -30 );
+        triangles[ i ].v2 = Vec3( 4 + i * 2, -0, -30 );
+        immutable Vec3 p3 = triangles[ i ].v1 - triangles[ i ].v0;
+        immutable Vec3 p4 = triangles[ i ].v2 - triangles[ i ].v0;
+        triangles[ i ].normal = normalize( cross( p3, p4 ) );
+        triangles[ i ].color = Vec3( 1, 0, 0 );
+        triangles[ i ].smoothness = 0.2f;
+        triangles[ i ].emission = 0;
+    }
+    
     readTGA( "wall1.tga", tex );
 
     traceRays( thisTid, 0, height, width, height, planes, spheres, triangles, pointLights );
