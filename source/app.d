@@ -14,16 +14,23 @@ import image;
 // Mipmapping
 // Threading
 
-// SIMD code for reference:
-// r_line = __simd( XMM.MULPS, a_line, b_line );
-// r_line = __simd( XMM.ADDPS, __simd( XMM.MULPS, a_line, b_line ), r_line );
-
 /*struct sVec3
 {
     float4 x;
     float4 y;
     float4 z;
-}*/
+    }*/
+
+ // https://stackoverflow.com/questions/4120681/how-to-calculate-vector-dot-product-using-sse-intrinsic-functions-in-c
+float4 dot4( float4 a, float4 b )
+{
+    float4 mulRes = __simd( XMM.MULPS, a, b );
+    float4 shufReg = __simd( XMM.MOVSHDUP, mulRes );
+    float4 sumsReg = __simd( XMM.ADDPS, mulRes, shufReg );
+    shufReg = __simd( XMM.MOVHLPS, shufReg, sumsReg );
+    sumsReg = __simd( XMM.ADDSS, sumsReg, shufReg );
+    return __simd( XMM.CVTSS2SD, sumsReg );
+}
 
 Texture tex;
 
@@ -220,6 +227,56 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         }                
     }
 
+    /*for (int triangleIndex = 0; triangleIndex < triangles.length; ++triangleIndex)
+    {
+        // Algorithm source: http://geomalgorithms.com/a06-_intersect-2.html#intersect_RayTriangle()
+        immutable Vec3 vn1 = triangles[ triangleIndex ].v1 - triangles[ triangleIndex ].v0;
+        immutable Vec3 vn2 = triangles[ triangleIndex ].v2 - triangles[ triangleIndex ].v0;
+
+        immutable float distance = -dot( rayOrigin - triangles[ triangleIndex ].v0, triangles[ triangleIndex].normal ) / dot( rayDirection, triangles[ triangleIndex].normal );
+
+        if (distance < 0.003f)
+        {
+            continue;
+        }
+
+        immutable Vec3 hitp = rayOrigin + rayDirection * distance;
+
+        // Is hit point inside the triangle?
+        immutable float uu = dot( vn1, vn1 );
+        immutable float uv = dot( vn1, vn2 );
+        immutable float vv = dot( vn2, vn2 );
+        immutable Vec3 w = hitp - triangles[ triangleIndex].v0;
+        immutable float wu = dot( w, vn1 );
+        immutable float wv = dot( w, vn2 );
+        immutable float D = uv * uv - uu * vv;
+        
+        // get and test parametric coords
+        immutable float s = (uv * wv - vv * wu) / D;
+        
+        if (s <= 0.0f || s >= 1.0f)
+        {
+            continue;
+        }
+        
+        immutable float t = (uv * wu - uu * wv) / D;
+        
+        if (t <= 0.0f || (s + t) >= 1.0f)
+        {
+            continue;
+        }
+
+        immutable int offs = cast(int)(t * tex.height * tex.width + s * tex.width) * 4;
+        closestTextureColor.z = tex.pixels[ offs + 0 ] / 255.0f;
+        closestTextureColor.y = tex.pixels[ offs + 1 ] / 255.0f;
+        closestTextureColor.x = tex.pixels[ offs + 2 ] / 255.0f;
+        
+        closestDistance = t;
+        closestIndex = triangleIndex;
+        closestType = ClosestType.Triangle;
+    }*/
+
+    // Optimized
     for (int triangleIndex = 0; triangleIndex < triangles.length; ++triangleIndex)
     {
         // Algorithm source: http://geomalgorithms.com/a06-_intersect-2.html#intersect_RayTriangle()
