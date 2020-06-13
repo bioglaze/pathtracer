@@ -5,14 +5,13 @@ import std.stdio;
 import std.random: uniform;
 import image;
 
-// unoptimized: 2 min 6 s, 2 min 4 s
-
 // TODO:
 // SIMD
 // Refraction
 // Transparency
 // Mipmapping
 // Threading
+// Anti-aliasing
 
 /*struct sVec3
 {
@@ -109,6 +108,59 @@ struct Vec3
     float x, y, z;
 }
 
+uint encodeColor( Vec3 color )
+{
+    return cast(uint)(color.z * 255) + (cast(uint)(color.y * 255) << 8) + (cast(uint)(color.x * 255) << 16);
+}
+
+float toSRGB( float f )
+{
+    if (f > 1)
+    {
+        f = 1;
+    }
+
+    if (f < 0)
+    {
+        f = 0;
+    }
+
+    float s = f * 12.92f;
+
+    if (s > 0.0031308f)
+    {
+        s = 1.055f * pow( f, 1 / 2.4f ) - 0.055f;
+    }
+
+    return s;
+}
+
+// http://entropymine.com/imageworsener/srgbformula/
+float sRGBToLinear( float s )
+{
+    if (s > 1)
+    {
+        s = 1;
+    }
+
+    if (s < 0)
+    {
+        s = 0;
+    }
+
+    if (s >= 0 && s <= 0.0404482362771082f)
+    {
+        return s / 12.92f;
+    }
+
+    if (s > 0.0404482362771082f && s <= 1)
+    {
+        return pow( (s + 0.055f) / 1.055f, 2.4f );
+    }
+
+    return 0;
+}
+
 struct Plane
 {
     Vec3 normal;
@@ -136,12 +188,6 @@ struct Triangle
     float emission;
 }
 
-struct PointLight
-{
-    Vec3 position;
-    Vec3 color;
-}
-
 Vec3 randomRayInHemisphere( Vec3 aNormal )
 {
     Vec3 v2 = Vec3( uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ), uniform( -1.0f, 1.0f ) );
@@ -162,6 +208,16 @@ Vec3 randomRayInHemisphere( Vec3 aNormal )
     return v2 * ( dot( v2, aNormal ) < 0.0f ? -1.0f : 1.0f);
 }
 
+Vec3 RandomUnitVector()
+{
+    float z = uniform( 0.0f, 1.0f ) * 2.0f - 1.0f;
+    float a = uniform( 0.0f, 1.0f ) * 2.0f * 3.14159265f;
+    float r = sqrt( 1.0f - z * z );
+    float x = r * cos( a );
+    float y = r * sin( a );
+    return Vec3( x, y, z );
+}
+
 Vec3 lerp( Vec3 v1, Vec3 v2, float amount )
 {
     return Vec3( v1.x + (v2.x - v1.x) * amount,
@@ -169,7 +225,7 @@ Vec3 lerp( Vec3 v1, Vec3 v2, float amount )
                  v1.z + (v2.z - v1.z) * amount );
 }
 
-Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] spheres, Triangle[] triangles, PointLight[] pointLights, int recursion )
+Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] spheres, Triangle[] triangles, int recursion )
 {
     if (recursion == 0)
     {
@@ -317,9 +373,9 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         }
 
         immutable int offs = cast(int)(t * tex.height * tex.width + s * tex.width) * 4;
-        closestTextureColor.z = tex.pixels[ offs + 0 ] / 255.0f;
-        closestTextureColor.y = tex.pixels[ offs + 1 ] / 255.0f;
-        closestTextureColor.x = tex.pixels[ offs + 2 ] / 255.0f;
+        closestTextureColor.z = sRGBToLinear( tex.pixels[ offs + 0 ] / 255.0f );
+        closestTextureColor.y = sRGBToLinear( tex.pixels[ offs + 1 ] / 255.0f );
+        closestTextureColor.x = sRGBToLinear( tex.pixels[ offs + 2 ] / 255.0f );
         
         closestDistance = t;
         closestIndex = triangleIndex;
@@ -335,8 +391,9 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     {
         hitPoint = rayOrigin + rayDirection * closestDistance;
         hitNormal = planes[ closestIndex ].normal;
-        immutable float sines = sin( 10 * hitPoint.x ) * sin( 10 * hitPoint.y ) * sin( 10 * hitPoint.z );
-        hitColor = sines < 0 ? Vec3( 1, 1, 1 ) : planes[ closestIndex ].color;
+        //immutable float sines = sin( 10 * hitPoint.x ) * sin( 10 * hitPoint.y ) * sin( 10 * hitPoint.z );
+        //hitColor = sines < 0 ? Vec3( 1, 1, 1 ) : planes[ closestIndex ].color;
+        hitColor = planes[ closestIndex ].color;
         hitSmoothness = planes[ closestIndex ].smoothness;
         hitEmission = planes[ closestIndex ].emission;
     }
@@ -351,9 +408,10 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
     
     if (recursion > 0 && closestIndex != -1)
     {
-        immutable Vec3 reflectionDir = normalize( reflect( rayDirection, hitNormal ) );
-        immutable Vec3 jitteredReflectionDir = normalize( randomRayInHemisphere( reflectionDir ) );
-        immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, hitSmoothness );
+        //immutable Vec3 reflectionDir = normalize( reflect( rayDirection, hitNormal ) );
+        //immutable Vec3 jitteredReflectionDir = normalize( randomRayInHemisphere( reflectionDir ) );
+        //immutable Vec3 finalReflectionDir = lerp( jitteredReflectionDir, reflectionDir, 0/*hitSmoothness*/ );
+        immutable Vec3 finalReflectionDir = normalize( hitNormal + RandomUnitVector() );
         //immutable Vec3 finalReflectionDir = normalize( randomRayInHemisphere( hitNormal ) );
         
         // BRDF
@@ -364,11 +422,12 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
             cosTheta = -cosTheta;
         }
 
-        immutable Vec3 reflectedColor1 = pathTraceRay( hitPoint, finalReflectionDir, planes, spheres, triangles, pointLights, recursion - 1 );
+        Vec3 startPoint = hitPoint + hitNormal * 0.01;
+        immutable Vec3 reflectedColor1 = pathTraceRay( startPoint, finalReflectionDir, planes, spheres, triangles, recursion - 1 );
 
-        immutable Vec3 dirToEmissive = normalize( spheres[ 3 ].position - hitPoint );
+        //immutable Vec3 dirToEmissive = normalize( spheres[ 3 ].position - hitPoint );
         
-        immutable Vec3 reflectedColorTowardEmissive = pathTraceRay( hitPoint, dirToEmissive, planes, spheres, triangles, pointLights, recursion - 1 );
+        //immutable Vec3 reflectedColorTowardEmissive = pathTraceRay( hitPoint, dirToEmissive, planes, spheres, triangles, recursion - 1 );
         immutable Vec3 reflectedColor = reflectedColor1;// + reflectedColorTowardEmissive;
         
         immutable Vec3 brdf = hitColor / 3.14159265f;        
@@ -376,35 +435,12 @@ Vec3 pathTraceRay( Vec3 rayOrigin, Vec3 rayDirection, Plane[] planes, Sphere[] s
         
         return Vec3( hitEmission, hitEmission, hitEmission ) + (brdf * reflectedColor * cosTheta / p);
     }
+    if (recursion > 0 && closestIndex == -1)
+    {
+        return Vec3( 0.5f, 0.5f, 0.8f );
+    }
     
     return Vec3( 0, 0, 0 );
-}
-
-uint encodeColor( Vec3 color )
-{
-    return cast(uint)(color.z * 255) + (cast(uint)(color.y * 255) << 8) + (cast(uint)(color.x * 255) << 16);
-}
-
-float toSRGB( float f )
-{
-    if (f > 1)
-    {
-        f = 1;
-    }
-
-    if (f < 0)
-    {
-        f = 0;
-    }
-
-    float s = f * 12.92f;
-
-    if (s > 0.0031308f)
-    {
-        s = 1.055f * pow( f, 1 / 2.4f ) - 0.055f;
-    }
-
-    return s;
 }
 
 const int width = 1280;
@@ -412,7 +448,7 @@ const int height = 720;
 
 static uint[ width * height ] imageData;
 
-void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[] imageData*/, Plane[] planes, Sphere[] spheres, Triangle[] triangles, PointLight[] pointLights )
+void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[] imageData*/, Plane[] planes, Sphere[] spheres, Triangle[] triangles )
 {
     immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
     immutable Vec3 camZ = Vec3( 0, 0, 1 );
@@ -428,7 +464,7 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
     immutable float halfW = 0.5f * fW;
     immutable float halfH = 0.5f * fH;
 
-    const int sampleCount = 1;
+    const int sampleCount = 4;
     int percent = 0;
 
     for (int y = startY; y < endY; ++y)
@@ -446,8 +482,7 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
 
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
-                // * 2 due to rays toward emissive objects
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, pointLights, 3 ) * (1.0f / (sampleCount * 2));
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 8 ) * (1.0f / sampleCount);
     
                 if (color.x > 1)
                 {
@@ -460,6 +495,19 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
                 if (color.z > 1)
                 {
                     color.z = 1;
+                }
+
+                if (color.x < 0)
+                {
+                    writeln( "x < 0" );
+                }
+                if (color.y < 0)
+                {
+                    writeln( "y < 0" );
+                }
+                if (color.z < 0)
+                {
+                    writeln( "z < 0" );
                 }
             }
 
@@ -482,69 +530,59 @@ void main()
     planes[ 0 ].position = Vec3( 0, 5, 0 );
     planes[ 0 ].normal = Vec3( 0, -1, 0 );
     planes[ 0 ].color = Vec3( 0.8f, 0.8f, 0.8f );
-    planes[ 0 ].smoothness = 0.2f;
+    planes[ 0 ].smoothness = 1.0f;
     planes[ 0 ].emission = 1;
     
     planes[ 1 ].position = Vec3( 0, -5, 0 );
     planes[ 1 ].normal = Vec3( 0, 1, 0 );
-    planes[ 1 ].color = Vec3( 0.5f, 1.0f, 0.5f );
-    planes[ 1 ].smoothness = 0.2f;
+    planes[ 1 ].color = Vec3( 1.0f, 0.5f, 0.5f );
+    planes[ 1 ].smoothness = 1.0f;
     planes[ 1 ].emission = 0;
 
     planes[ 2 ].position = Vec3( -10, 0, 0 );
     planes[ 2 ].normal = Vec3( 1, 0, 0 );
     planes[ 2 ].color = Vec3( 1, 0, 0 );
-    planes[ 2 ].smoothness = 0.2f;
+    planes[ 2 ].smoothness = 1.0f;
     planes[ 2 ].emission = 0;
 
     planes[ 3 ].position = Vec3( 10, 0, 0 );
     planes[ 3 ].normal = Vec3( -1, 0, 0 );
     planes[ 3 ].color = Vec3( 0, 1, 0 );
-    planes[ 3 ].smoothness = 0.2f;
+    planes[ 3 ].smoothness = 1.0f;
     planes[ 3 ].emission = 0;
 
     planes[ 4 ].position = Vec3( 0, 0, -40 );
     planes[ 4 ].normal = Vec3( 0, 0, 1 );
     planes[ 4 ].color = Vec3( 1, 1, 0 );
-    planes[ 4 ].smoothness = 0.2f;
+    planes[ 4 ].smoothness = 1.0f;
     planes[ 4 ].emission = 0;
 
     planes[ 5 ].position = Vec3( 0, 0, 40 );
     planes[ 5 ].normal = Vec3( 0, 0, -1 );
     planes[ 5 ].color = Vec3( 1, 1, 0 );
-    planes[ 5 ].smoothness = 0.2f;
+    planes[ 5 ].smoothness = 1.0f;
     planes[ 5 ].emission = 0;
 
-    Sphere[ 4 ] spheres;
+    Sphere[ 3 ] spheres;
     spheres[ 0 ].position = Vec3( -8, -4, -30 );
-    spheres[ 0 ].radius = 5;
+    spheres[ 0 ].radius = 3;
     spheres[ 0 ].color = Vec3( 0, 0, 1 );
     spheres[ 0 ].smoothness = 1.0f;
     spheres[ 0 ].emission = 0;
     
-    spheres[ 1 ].position = Vec3( 0, -0.5f, -12 );
+    spheres[ 1 ].position = Vec3( 0, -4, -30 );
     spheres[ 1 ].radius = 3;
     spheres[ 1 ].color = Vec3( 0, 1, 0 );
     spheres[ 1 ].smoothness = 1.0f;
     spheres[ 1 ].emission = 0;
     
     spheres[ 2 ].position = Vec3( 8, -4, -30 );
-    spheres[ 2 ].radius = 5;
+    spheres[ 2 ].radius = 3;
     spheres[ 2 ].color = Vec3( 1, 0, 0 );
     spheres[ 2 ].smoothness = 1.0f;
     spheres[ 2 ].emission = 0;
 
-    spheres[ 3 ].position = Vec3( 4, -4, -30 );
-    spheres[ 3 ].radius = 2;
-    spheres[ 3 ].color = Vec3( 1, 1, 1 );
-    spheres[ 3 ].smoothness = 1.0f;
-    spheres[ 3 ].emission = 1;
-
-    PointLight[ 1 ] pointLights;
-    pointLights[ 0 ].color = Vec3( 1, 0, 0 );
-    pointLights[ 0 ].position = Vec3( 10, -4, -30 );
-    
-    Triangle[ 10 ] triangles;
+    Triangle[ 1 ] triangles;
     triangles[ 0 ].v0 = Vec3( 8, -2, -30 );
     triangles[ 0 ].v1 = Vec3( 14, -2, -30 );
     triangles[ 0 ].v2 = Vec3( 8, -0, -30 );
@@ -554,8 +592,8 @@ void main()
     triangles[ 0 ].color = Vec3( 1, 0, 0 );
     triangles[ 0 ].smoothness = 0.2f;
     triangles[ 0 ].emission = 0;
-
-    for (int i = 1; i < 10; ++i)
+    
+    /*for (int i = 1; i < 10; ++i)
     {
         triangles[ i ].v0 = Vec3( 4 + i * 2 , -4, -30 );
         triangles[ i ].v1 = Vec3( 6 + i * 2, -4, -30 );
@@ -566,11 +604,11 @@ void main()
         triangles[ i ].color = Vec3( 1, 0, 0 );
         triangles[ i ].smoothness = 0.2f;
         triangles[ i ].emission = 0;
-    }
+        }*/
     
     readTGA( "wall1.tga", tex );
 
-    traceRays( thisTid, 0, height, width, height, planes, spheres, triangles, pointLights );
+    traceRays( thisTid, 0, height, width, height, planes, spheres, triangles );
     
     //auto tId1 = spawn( &traceRays, thisTid, 0, height, width, height, planes, spheres, triangles );
     //auto tId2 = spawn( &traceRays, thisTid, height / 2, height, width, height, planes, spheres, triangles );
