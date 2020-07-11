@@ -8,6 +8,7 @@ Author: [Timo Wirén](http://twiren.kapsi.fi)
 ## Features:
 
  - Planes
+ - Antialiasing
  - Spheres
  - Triangles
  - sRGB

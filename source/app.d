@@ -448,6 +448,19 @@ const int height = 720;
 
 static uint[ width * height ] imageData;
 
+// ACES tone mapping curve fit to go from HDR to LDR
+// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+// Input and output are linear.
+/*Vec3 ACESFilm( Vec3 x )
+{
+    immutable float a = 2.51f;
+    immutable float b = 0.03f;
+    immutable float c = 2.43f;
+    immutable float d = 0.59f;
+    immutable float e = 0.14f;
+    return clamp((x*(a*x + b)) / (x*(c*x + d) + e), 0.0f, 1.0f);
+    }*/
+
 void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[] imageData*/, Plane[] planes, Sphere[] spheres, Triangle[] triangles )
 {
     immutable Vec3 cameraPosition = Vec3( 0, 0, 0 );
@@ -464,25 +477,34 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
     immutable float halfW = 0.5f * fW;
     immutable float halfH = 0.5f * fH;
 
-    const int sampleCount = 4;
+    const int sampleCount = 8;
     int percent = 0;
 
-    for (int y = startY; y < endY; ++y)
+    float[] pixbuf = new float[ width * height * 3 ];
+
+    for (int i = 0; i < width * height * 3; ++i)
     {
-        immutable float yR = -1 + 2 * (y / cast(float)height);
-            
-        for (int x = 0; x < width; ++x)
+        pixbuf[ i ] = 0;
+    }
+    
+    for (int samples = 0; samples < sampleCount; ++samples)
+    {
+        for (int y = startY; y < endY; ++y)
         {
-            Vec3 color = Vec3( 0, 0, 0 );
+            immutable float jitterY = uniform( 0.0f, 1.0f ) - 0.5f;
+            immutable float yR = -1 + 2 * (( y + jitterY ) / cast(float)height);
             
-            for (int samples = 0; samples < sampleCount; ++samples)
+            for (int x = 0; x < width; ++x)
             {
-                immutable float xR = -1 + 2 * (x / cast(float)width);
+                Vec3 color = Vec3( 0, 0, 0 );
+            
+                immutable float jitterX = uniform( 0.0f, 1.0f ) - 0.5f;
+                immutable float xR = -1 + 2 * ((x + jitterX) / cast(float)width);
                 immutable Vec3 fp = center + camX * halfW * xR + camY * halfH * yR;
 
                 immutable Vec3 rayDirection = normalize( fp - cameraPosition );
 
-                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 8 ) * (1.0f / sampleCount);
+                color = color + pathTraceRay( cameraPosition, rayDirection, planes, spheres, triangles, 8 );// * (1.0f / sampleCount);
     
                 if (color.x > 1)
                 {
@@ -509,18 +531,32 @@ void traceRays( Tid owner, int startY, int endY, int width, int height/*, uint[]
                 {
                     writeln( "z < 0" );
                 }
+                
+                pixbuf[ y * 3 * width + x * 3 + 0 ] += color.x;
+                pixbuf[ y * 3 * width + x * 3 + 1 ] += color.y;
+                pixbuf[ y * 3 * width + x * 3 + 2 ] += color.z;
+                //imageData[ y * width + x ] = encodeColor( Vec3( toSRGB( color.x ), toSRGB( color.y ), toSRGB( color.z ) ) );
             }
-
-            imageData[ y * width + x ] = encodeColor( Vec3( toSRGB( color.x ), toSRGB( color.y ), toSRGB( color.z ) ) );                
         }
 
-        if ((y % (height / 10)) == 0)
+        /* if ((y % (height / 10)) == 0)
         {
             writeln( percent, " %" );
             percent += 10;
-        }
+            }*/
     }
 
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            float r = pixbuf[ y * 3 * width + x * 3 + 0 ] / sampleCount;
+            float g = pixbuf[ y * 3 * width + x * 3 + 1 ] / sampleCount;
+            float b = pixbuf[ y * 3 * width + x * 3 + 2 ] / sampleCount;
+            imageData[ y * width + x ] = encodeColor( Vec3( toSRGB( r ), toSRGB( g ), toSRGB( b ) ) );
+        }
+    }
+    
     owner.send( true );
 }
 
